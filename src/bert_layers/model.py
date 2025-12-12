@@ -409,7 +409,7 @@ class BertForMaskedLM(BertPreTrainedModel):
             loss = loss_fct(prediction_scores, labels.flatten()[masked_token_idx])
             
             # Add MoE auxiliary losses if present
-            aux_loss = self._get_aux_loss()
+            aux_loss, lb_loss, z_loss = self._get_aux_losses()
             if aux_loss is not None:
                 loss = loss + aux_loss
 
@@ -430,6 +430,9 @@ class BertForMaskedLM(BertPreTrainedModel):
             logits=prediction_scores,
             hidden_states=None,
             attentions=None,
+            moe_aux_loss=aux_loss,
+            moe_load_balance_loss=lb_loss,
+            moe_router_z_loss=z_loss,
         )
 
     def prepare_inputs_for_generation(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, **model_kwargs):
@@ -695,6 +698,12 @@ class BertForMultipleChoice(BertPreTrainedModel):
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
 
+            aux_loss, lb_loss, z_loss = self._get_aux_losses()
+            if aux_loss is not None:
+                loss = loss + aux_loss
+        else:
+            aux_loss, lb_loss, z_loss = (None, None, None)
+
         if not return_dict:
             output = (reshaped_logits,) + outputs[2:]
             return ((loss,) + output) if loss is not None else output
@@ -704,6 +713,9 @@ class BertForMultipleChoice(BertPreTrainedModel):
             logits=reshaped_logits,
             hidden_states=None,
             attentions=None,
+            moe_aux_loss=aux_loss,
+            moe_load_balance_loss=lb_loss,
+            moe_router_z_loss=z_loss,
         )
 
 
@@ -870,6 +882,33 @@ class FlexBertPreTrainedModel(BertPreTrainedModel):
     An abstract class to handle custom weights initialization of modules
     """
 
+    def _get_aux_losses(self):
+        """Collect auxiliary MoE losses across all MoE layers."""
+
+        aux_loss = None
+        load_balance_loss = None
+        router_z_loss = None
+
+        for module in self.modules():
+            if hasattr(module, "aux_loss") and module.aux_loss is not None:
+                aux_loss = module.aux_loss if aux_loss is None else aux_loss + module.aux_loss
+
+            if hasattr(module, "load_balance_loss_value") and module.load_balance_loss_value is not None:
+                load_balance_loss = (
+                    module.load_balance_loss_value
+                    if load_balance_loss is None
+                    else load_balance_loss + module.load_balance_loss_value
+                )
+
+            if hasattr(module, "router_z_loss_value") and module.router_z_loss_value is not None:
+                router_z_loss = (
+                    module.router_z_loss_value
+                    if router_z_loss is None
+                    else router_z_loss + module.router_z_loss_value
+                )
+
+        return aux_loss, load_balance_loss, router_z_loss
+
     def _init_module_weights(self, module: nn.Module):
         """
         Custom weight init of modules using src.bert_layers.initialization.init_weights
@@ -1027,20 +1066,6 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         # Initialize weights and apply final processing
         self._init_weights(reset_params=False)
     
-    def _get_aux_loss(self) -> Optional[torch.Tensor]:
-        """Collect auxiliary losses from all MoE layers in the model."""
-        aux_loss = None
-        
-        # Traverse all modules to find FlexBertGLUMoE layers
-        for module in self.modules():
-            if hasattr(module, 'aux_loss') and module.aux_loss is not None:
-                if aux_loss is None:
-                    aux_loss = module.aux_loss
-                else:
-                    aux_loss = aux_loss + module.aux_loss
-        
-        return aux_loss
-
     def _init_weights(self, module: Optional[nn.Module] = None, reset_params: Optional[bool] = None):
         assert (module is None) != (reset_params is None), "arg module xor reset_params must be specified"
         if module:
@@ -1284,20 +1309,6 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         # Initialize weights and apply final processing
         self._init_weights(reset_params=False)
 
-    def _get_aux_loss(self) -> Optional[torch.Tensor]:
-        """Collect auxiliary losses from all MoE layers in the model."""
-        aux_loss = None
-        
-        # Traverse all modules to find FlexBertGLUMoE layers
-        for module in self.modules():
-            if hasattr(module, 'aux_loss') and module.aux_loss is not None:
-                if aux_loss is None:
-                    aux_loss = module.aux_loss
-                else:
-                    aux_loss = aux_loss + module.aux_loss
-        
-        return aux_loss
-
     def _init_weights(self, module: Optional[nn.Module] = None, reset_params: Optional[bool] = None):
         assert (module is None) != (reset_params is None), "arg module xor reset_params must be specified"
         if module:
@@ -1387,7 +1398,7 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
                 loss = loss_fct(logits, labels)
             
             # Add MoE auxiliary losses if present
-            aux_loss = self._get_aux_loss()
+            aux_loss, lb_loss, z_loss = self._get_aux_losses()
             if aux_loss is not None:
                 loss = loss + aux_loss
 
@@ -1400,6 +1411,9 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
             logits=logits,
             hidden_states=None,
             attentions=None,
+            moe_aux_loss=aux_loss,
+            moe_load_balance_loss=lb_loss,
+            moe_router_z_loss=z_loss,
         )
 
     def get_number_parameters(self, count_embeddings: bool = True, trainable: bool = True) -> int:
@@ -1513,6 +1527,12 @@ class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
 
+            aux_loss, lb_loss, z_loss = self._get_aux_losses()
+            if aux_loss is not None:
+                loss = loss + aux_loss
+        else:
+            aux_loss, lb_loss, z_loss = (None, None, None)
+
         if not return_dict:
             output = (reshaped_logits,) + output
             return ((loss,) + output) if loss is not None else output
@@ -1522,6 +1542,9 @@ class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
             logits=reshaped_logits,
             hidden_states=None,
             attentions=None,
+            moe_aux_loss=aux_loss,
+            moe_load_balance_loss=lb_loss,
+            moe_router_z_loss=z_loss,
         )
 
     def get_number_parameters(self, count_embeddings: bool = True, trainable: bool = True) -> int:

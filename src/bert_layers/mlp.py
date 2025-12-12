@@ -357,22 +357,26 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         exp_weight_flat = exp_mask.view(num_tokens, -1)
         exp_out_flat = exp_out.view(-1, d)
         output = torch.matmul(exp_weight_flat, exp_out_flat)
-        
+
         # Compute auxiliary losses
         self.aux_loss = None
+        self.load_balance_loss_value = None
+        self.router_z_loss_value = None
         if self.compute_aux_loss:
             # Reshape for loss computation
             router_logits_reshaped = router_logits.view(B, C, -1)
             top_k_indices_reshaped = top_k_indices.view(B, C, -1)
-            
+
             # Compute load balancing loss
             lb_loss = self.load_balance_loss(router_logits_reshaped, top_k_indices_reshaped)
-            
+
             # Compute router z-loss
             z_loss = self.router_z_loss(router_logits_reshaped)
-            
+
             # Combine auxiliary losses with weights
             self.aux_loss = self.load_balance_loss_weight * lb_loss + self.router_z_loss_weight * z_loss
+            self.load_balance_loss_value = lb_loss
+            self.router_z_loss_value = z_loss
         
         return output.view(*original_shape)
 

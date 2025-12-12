@@ -141,6 +141,69 @@ class EfficientZLoss(Metric):
         return self.sum_loss / self.total_items  # type: ignore (third-party)
 
 
+@rename_class("MoEAuxLoss")
+class EfficientMoEAuxLoss(Metric):
+    """Torchmetric that tracks the summed auxiliary MoE loss from model outputs."""
+
+    full_state_update = False
+
+    def __init__(self, dist_sync_on_step: bool = False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.add_state("sum_loss", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_items", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, loss: Optional[Tensor]) -> None:  # type: ignore (third-party)
+        if loss is None:
+            return
+        self.sum_loss += loss
+        self.total_items += 1
+
+    def compute(self) -> Tensor:
+        return self.sum_loss / self.total_items  # type: ignore (third-party)
+
+
+@rename_class("MoELoadBalanceLoss")
+class EfficientMoELoadBalanceLoss(Metric):
+    """Torchmetric that tracks the MoE load balance loss from model outputs."""
+
+    full_state_update = False
+
+    def __init__(self, dist_sync_on_step: bool = False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.add_state("sum_loss", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_items", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, loss: Optional[Tensor]) -> None:  # type: ignore (third-party)
+        if loss is None:
+            return
+        self.sum_loss += loss
+        self.total_items += 1
+
+    def compute(self) -> Tensor:
+        return self.sum_loss / self.total_items  # type: ignore (third-party)
+
+
+@rename_class("MoERouterZLoss")
+class EfficientMoERouterZLoss(Metric):
+    """Torchmetric that tracks the router z-loss from model outputs."""
+
+    full_state_update = False
+
+    def __init__(self, dist_sync_on_step: bool = False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.add_state("sum_loss", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_items", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, loss: Optional[Tensor]) -> None:  # type: ignore (third-party)
+        if loss is None:
+            return
+        self.sum_loss += loss
+        self.total_items += 1
+
+    def compute(self) -> Tensor:
+        return self.sum_loss / self.total_items  # type: ignore (third-party)
+
+
 class EfficientHuggingFaceModel(HuggingFaceModel):
     def eval_forward(self, batch, outputs: Optional[Any] = None):
         outputs = self.forward(batch) if outputs is None else outputs
@@ -158,6 +221,12 @@ class EfficientHuggingFaceModel(HuggingFaceModel):
             metric_result = metric.update(outputs["ce_loss"])
         elif getattr(outputs, "z_loss", False) and isinstance(metric, EfficientZLoss):
             metric_result = metric.update(outputs["z_loss"])
+        elif isinstance(metric, EfficientMoEAuxLoss):
+            metric_result = metric.update(outputs.get("moe_aux_loss"))
+        elif isinstance(metric, EfficientMoELoadBalanceLoss):
+            metric_result = metric.update(outputs.get("moe_load_balance_loss"))
+        elif isinstance(metric, EfficientMoERouterZLoss):
+            metric_result = metric.update(outputs.get("moe_router_z_loss"))
         elif isinstance(metric, EfficientCrossEntropy):
             metric_result = metric.update(outputs["loss"])
         else:
@@ -289,6 +358,9 @@ def create_flex_bert_mlm(
         metrics = [EfficientCrossEntropy()] + metrics
     if model_config.get("loss_kwargs", {}).get("return_z_loss", False):
         metrics += [EfficientZLoss()]
+
+    if getattr(config, "moe_compute_aux_loss", False):
+        metrics += [EfficientMoEAuxLoss(), EfficientMoELoadBalanceLoss(), EfficientMoERouterZLoss()]
 
     eval_metrics = copy.deepcopy(metrics)
     if disable_train_metrics:
@@ -465,7 +537,10 @@ def create_flex_bert_classification(
             MultilabelAccuracy(num_labels=num_labels, average="micro"),
         ]
 
-    hf_model = HuggingFaceModel(
+    if getattr(config, "moe_compute_aux_loss", False):
+        metrics += [EfficientMoEAuxLoss(), EfficientMoELoadBalanceLoss(), EfficientMoERouterZLoss()]
+
+    hf_model = EfficientHuggingFaceModel(
         model=model,
         tokenizer=tokenizer,
         use_logits=True,
