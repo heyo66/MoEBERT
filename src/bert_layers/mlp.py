@@ -282,7 +282,7 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.compute_aux_loss = getattr(config, 'moe_compute_aux_loss', True)
         self.load_balance_loss_weight = getattr(config, 'moe_load_balance_loss_weight', 0.01)
         self.router_z_loss_weight = getattr(config, 'moe_router_z_loss_weight', 0.001)
-        
+
         self.router = Router(
             d=config.hidden_size,
             n_exp=self.n_exp,
@@ -307,6 +307,11 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         if self.compute_aux_loss:
             self.load_balance_loss = MoELoadBalancingLoss(num_experts=self.n_exp, top_k=self.top_k)
             self.router_z_loss = MoERouterZLoss()
+
+        # Cached metrics for logging
+        self.latest_lb_loss = None
+        self.latest_router_z_loss = None
+        self.latest_aux_loss = None
     
     def _init_weights(self, reset_params: bool = False):
         init_weights(
@@ -360,20 +365,28 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         
         # Compute auxiliary losses
         self.aux_loss = None
+        self.latest_lb_loss = None
+        self.latest_router_z_loss = None
+        self.latest_aux_loss = None
         if self.compute_aux_loss:
             # Reshape for loss computation
             router_logits_reshaped = router_logits.view(B, C, -1)
             top_k_indices_reshaped = top_k_indices.view(B, C, -1)
-            
+
             # Compute load balancing loss
             lb_loss = self.load_balance_loss(router_logits_reshaped, top_k_indices_reshaped)
-            
+
             # Compute router z-loss
             z_loss = self.router_z_loss(router_logits_reshaped)
-            
+
             # Combine auxiliary losses with weights
             self.aux_loss = self.load_balance_loss_weight * lb_loss + self.router_z_loss_weight * z_loss
-        
+
+            # Cache detached values for monitoring/logging
+            self.latest_lb_loss = lb_loss.detach()
+            self.latest_router_z_loss = z_loss.detach()
+            self.latest_aux_loss = self.aux_loss.detach()
+
         return output.view(*original_shape)
 
 
@@ -401,5 +414,4 @@ def get_mlp_layer(config: FlexBertConfig, layer_id: Optional[int] = None) -> Fle
             )
         else:
             raise ValueError(f"Invalid MLP layer type: {config.mlp_layer=}, must be one of {MLP2CLS.keys()}. {e}")
-
 

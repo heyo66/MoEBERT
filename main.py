@@ -42,6 +42,7 @@ import src.text_data as text_data_module
 from src.algorithms.rope_schedule import FlexBertRopeSchedule
 from src.callbacks.dataloader_speed import DataloaderSpeedMonitor
 from src.callbacks.log_grad_norm import LogGradNorm
+from src.callbacks.moe_monitor import MoEAuxLossMonitor
 from src.callbacks.packing_efficiency import PackingEfficency
 from src.callbacks.scheduled_gc import ScheduledGarbageCollector
 from src.scheduler import CosineInverseSqrtScheduler, OneMinusSqrtScheduler, WarmupStableDecayScheduler
@@ -174,6 +175,8 @@ def build_callback(name, kwargs):
         return DataloaderSpeedMonitor()
     elif name == "packing_efficiency":
         return PackingEfficency(log_interval=kwargs.get("log_interval", 10))
+    elif name == "moe_aux_monitor":
+        return MoEAuxLossMonitor(log_interval=kwargs.get("log_interval", 1))
     else:
         raise ValueError(f"Not sure how to build callback: {name}")
 
