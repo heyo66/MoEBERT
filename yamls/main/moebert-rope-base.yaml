@@ -2,7 +2,7 @@
 # Based on FlexBERT-RoPE-Base with Mixture of Experts enabled
 
 # Data configuration
-data_local: ./my-copy-c4
+data_local: ./c4_realnewslike
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 512
