@@ -37,7 +37,7 @@ model:
       reduction: mean
     mlp_dropout_prob: 0.0
     mlp_in_bias: false
-    mlp_layer: moe_gelu
+    mlp_layer: glu_moe
     mlp_out_bias: false
     normalization: rmsnorm
     norm_kwargs:
