@@ -3,7 +3,7 @@
 
 # Follow the instructions in the README to set up ./my-copy-c4
 # Or point data paths to your remote C4 dataset
-data_local: ./my-copy-c4
+data_local: ./c4_realnewslike
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 512
@@ -112,18 +112,18 @@ optimizer:
 
 # algorithms:
 
-max_duration: 286720000sp # Subsample the training data for ~275M samples
+max_duration: 13799838sp # Subsample the training data for ~275M samples
 eval_interval: 2000ba
-global_train_batch_size: 4096
+global_train_batch_size: 64
 
 # System
 seed: 17
-device_train_microbatch_size: 128
+device_train_microbatch_size: 32
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
-global_eval_batch_size: 256
-device_eval_microbatch_size: 64
+global_eval_batch_size: 64
+device_eval_microbatch_size: 32
 
 # Logging
 progress_bar: false
@@ -139,18 +139,20 @@ callbacks:
   speed_monitor:
     window_size: 10
   lr_monitor: {}
+loggers:
+  wandb:
+    project: moebert
+    entity: # Fill this in with your W&B team/entity name
+    name: ${run_name}
+    group: rope-base-c4new
 
-# (Optional) W&B logging
-# loggers:
-#   wandb:
-#     project:      # Fill this in
-#     entity:       # Fill this in
 
-# (Optional) Checkpoint to local filesystem or remote object store
-# save_interval: 3500ba
+# Checkpoint to local filesystem or remote object store
+save_interval: 100000sp
+save_num_checkpoints_to_keep: 2
+
 # save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
-# save_folder:      # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
-
+save_folder: checkpoint/{run_name} 
 # (Optional) Load from local filesystem or remote object store to
 # start from an existing model checkpoint;
 # e.g. './ckpt/latest-rank{rank}.pt' (local), or
