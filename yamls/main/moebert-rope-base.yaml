@@ -162,7 +162,7 @@ loggers:
     group: rope-base-moe
 
 # Checkpoint to local filesystem or remote object store
-save_interval: 1000a
+save_interval: 100000sp
 save_num_checkpoints_to_keep: 2
 
 # save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
