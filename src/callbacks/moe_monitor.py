@@ -38,14 +38,19 @@ class MoEAuxLossMonitor(Callback):
                 layer_stats[name]["moe_router_z_loss"] = module.latest_router_z_loss
 
         if layer_stats:
-            total_aux = torch.tensor(0.0, device=state.device)
-            for layer_name, values in layer_stats.items():
+          # initialize on correct device + dtype
+             any_tensor = next(iter(next(iter(layer_stats.values())).values()))
+             total_aux = any_tensor.new_tensor(0.0)
+
+             for layer_name, values in layer_stats.items():
                 prefix = f"moe/{layer_name}"
                 for metric_name, tensor_val in values.items():
-                    metrics[f"{prefix}/{metric_name}"] = tensor_val.detach().cpu()
-                    if metric_name == "moe_aux_loss":
-                        total_aux = total_aux + tensor_val
-            metrics["moe/total_aux_loss"] = total_aux.detach().cpu()
-            logger.log_metrics(metrics)
+                   metrics[f"{prefix}/{metric_name}"] = tensor_val.detach().cpu()
+                   if metric_name == "moe_aux_loss":
+                     total_aux = total_aux + tensor_val
+
+        metrics["moe/total_aux_loss"] = total_aux.detach().cpu()
+
+        logger.log_metrics(metrics)
 
         self._batch_idx += 1
