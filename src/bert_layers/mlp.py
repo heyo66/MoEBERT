@@ -241,6 +241,9 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.latest_router_z_loss = None
         self.latest_aux_loss = None
         self.latest_moe_losses = {}
+        self.latest_expert_usage = None
+        self.latest_expert_prob = None
+        self._ds_gate = None
     
     def _init_weights(self, reset_params: bool = False):
         if DeepSpeedMoELayer is None:
@@ -308,6 +311,10 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         if hidden_states.dim() == 2:
             hidden_states = hidden_states.unsqueeze(0)
 
+        self.latest_expert_usage = None
+        self.latest_expert_prob = None
+        self._capture_expert_stats(hidden_states)
+
         outputs = self.ds_moe(hidden_states)
         if isinstance(outputs, tuple):
             routed_hidden_states = outputs[0]
@@ -334,6 +341,39 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             self.latest_moe_losses = {k: v.detach() for k, v in losses_dict.items() if torch.is_tensor(v)}
 
         return routed_hidden_states.contiguous().view(*original_shape)
+
+    def _resolve_ds_gate(self):
+        if self._ds_gate is not None:
+            return self._ds_gate
+        candidate = getattr(self.ds_moe, "gate", None)
+        if candidate is None:
+            for module in self.ds_moe.modules():
+                if isinstance(module, nn.Linear) and module.out_features == self.n_exp:
+                    candidate = module
+                    break
+        self._ds_gate = candidate
+        return self._ds_gate
+
+    def _capture_expert_stats(self, hidden_states: torch.Tensor):
+        gate_module = self._resolve_ds_gate()
+        if gate_module is None:
+            return
+        flat = hidden_states
+        if flat.dim() > 2:
+            flat = flat.view(-1, flat.size(-1))
+        if flat.numel() == 0:
+            return
+        with torch.no_grad():
+            logits = gate_module(flat)
+            probs = torch.softmax(logits, dim=-1)
+            if probs.numel() == 0:
+                return
+            self.latest_expert_prob = probs.mean(dim=0).detach()
+            topk = torch.topk(logits, k=min(self.top_k, logits.size(-1)), dim=-1).indices
+            counts = torch.bincount(topk.view(-1), minlength=self.n_exp).float()
+            total = counts.sum()
+            if total.item() > 0:
+                self.latest_expert_usage = (counts / total).detach()
 
 
 # Update the MLP registry

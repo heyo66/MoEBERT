@@ -39,6 +39,10 @@ class MoEAuxLossMonitor(Callback):
             if hasattr(module, "latest_moe_losses") and module.latest_moe_losses:
                 for loss_name, tensor in module.latest_moe_losses.items():
                     layer_stats[name][f"moe_ds/{loss_name}"] = tensor
+            if hasattr(module, "latest_expert_usage") and module.latest_expert_usage is not None:
+                layer_stats[name]["expert_usage"] = module.latest_expert_usage
+            if hasattr(module, "latest_expert_prob") and module.latest_expert_prob is not None:
+                layer_stats[name]["expert_prob"] = module.latest_expert_prob
 
         if layer_stats:
             # initialize on correct device + dtype
@@ -48,7 +52,12 @@ class MoEAuxLossMonitor(Callback):
             for layer_name, values in layer_stats.items():
                 prefix = f"moe/{layer_name}"
                 for metric_name, tensor_val in values.items():
-                    metrics[f"{prefix}/{metric_name}"] = tensor_val.detach().cpu()
+                    tensor_to_log = tensor_val.detach().cpu()
+                    if tensor_to_log.ndim == 0:
+                        metrics[f"{prefix}/{metric_name}"] = tensor_to_log
+                    else:
+                        for idx, val in enumerate(tensor_to_log):
+                            metrics[f"{prefix}/{metric_name}_{idx}"] = val
                     if metric_name == "moe_aux_loss":
                         total_aux = total_aux + tensor_val
 
