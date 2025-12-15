@@ -79,7 +79,7 @@ model:
     moe_load_balance_loss_weight: 0.01
     moe_router_z_loss_weight: 0.001
     moe_backend: deepspeed
-    moe_expert_parallel_size: 2
+    moe_expert_parallel_size: 1
     moe_eval_capacity_factor: 1.25
     moe_min_capacity: 0
 
@@ -95,7 +95,7 @@ train_loader:
     shuffle: true
     mlm_probability: ${mlm_probability}
   drop_last: true
-  num_workers: 0
+  num_workers: 8
 
 eval_loader:
   name: text
@@ -108,7 +108,7 @@ eval_loader:
     shuffle: false
     mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
   drop_last: false
-  num_workers: 0
+  num_workers: 8
 
 # Optimization
 scheduler:
@@ -127,7 +127,7 @@ optimizer:
   filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
 
 # Training parameters
-max_duration: 10ba # Subsample 
+max_duration: 12000000sp # Subsample 
 eval_interval: 500ba
 global_train_batch_size: 2
 
