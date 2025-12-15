@@ -265,6 +265,7 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             mlp_in_bias=self.config.mlp_in_bias,
             mlp_out_bias=self.config.mlp_out_bias,
         )
+        self._init_ds_expert_weights(expert_module)
 
         eval_capacity = (
             self.config.moe_eval_capacity_factor
@@ -284,6 +285,22 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             noisy_gate_policy=noisy_policy,
             drop_tokens=True,
             use_residual=False,
+        )
+
+    def _init_ds_expert_weights(self, expert_module: DeepSpeedGLUExpert):
+        init_weights(
+            self.config,
+            expert_module.in_proj,
+            layer_dim=self.config.hidden_size,
+            layer_id=self.layer_id,
+            type_of_module=ModuleType.in_module,
+        )
+        init_weights(
+            self.config,
+            expert_module.out_proj,
+            layer_dim=self.config.intermediate_size,
+            layer_id=self.layer_id,
+            type_of_module=ModuleType.out_module,
         )
 
     def _forward_with_deepspeed(self, hidden_states: torch.Tensor) -> torch.Tensor:
