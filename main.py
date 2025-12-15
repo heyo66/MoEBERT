@@ -15,6 +15,11 @@ from torch import nn
 
 from src.bert_layers.configuration_bert import FlexBertConfig
 from src.bert_layers.mlp import FlexBertGLUMoE
+
+try:
+    from deepspeed.moe.utils import split_params_into_different_moe_groups_for_optimizer
+except ImportError:  # pragma: no cover - optional dependency
+    split_params_into_different_moe_groups_for_optimizer = None
 from src.bert_layers.model import init_mlm_model_from_pretrained
 
 # Add folder root to path to allow us to use relative imports regardless of what directory the script is run from
@@ -113,6 +118,9 @@ def param_groups_weight_decay(model: nn.Module, weight_decay=1e-5, no_weight_dec
 
 
 def mark_moe_param_groups(optimizer, model: nn.Module):
+    if split_params_into_different_moe_groups_for_optimizer is not None:
+        optimizer.param_groups[:] = split_params_into_different_moe_groups_for_optimizer(optimizer.param_groups)
+        return
     moe_param_ids = {
         id(param)
         for module in model.modules()
