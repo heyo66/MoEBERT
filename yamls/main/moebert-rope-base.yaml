@@ -178,6 +178,7 @@ deepspeed:
     reduce_scatter: true
     reduce_bucket_size: 5.0e7
     allgather_bucket_size: 5.0e7
+    ignore_unused_parameters: true
   bf16:
     enabled: true
   fp16:
