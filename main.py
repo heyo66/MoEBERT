@@ -126,7 +126,11 @@ def mark_moe_param_groups(optimizer, model: nn.Module):
         params = group.get("params", [])
         if params is None:
             continue
-        moe_params = [param for param in params if id(param) in moe_param_ids]
+        moe_params = []
+        for param in params:
+            if id(param) in moe_param_ids:
+                setattr(param, "moe", True)
+                moe_params.append(param)
         non_moe_params = [param for param in params if id(param) not in moe_param_ids]
         base_group = {k: v for k, v in group.items() if k != "params"}
         if non_moe_params:
