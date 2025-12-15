@@ -436,6 +436,10 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         cfg.run_name = os.environ.get("COMPOSER_RUN_NAME", "bert")
 
     # Build the Trainer
+    ds_config = cfg.get("deepspeed", None)
+    if ds_config is not None:
+        ds_config = om.to_container(ds_config, resolve=True)
+
     trainer = Trainer(
         run_name=cfg.run_name,
         seed=cfg.seed,
@@ -467,7 +471,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         autoresume=cfg.get("autoresume", None),
         fsdp_config=cfg.get("fsdp_config", None),
         compile_config=cfg.get("compile_config", None),
-        deepspeed_config=cfg.get("deepspeed", None),
+        deepspeed_config=ds_config,
     )
 
     print("Logging config...")
