@@ -171,7 +171,7 @@ deepspeed:
   gradient_accumulation_steps: 1
   steps_per_print: 50
   wall_clock_breakdown: false
-  zero_optimization:
+ # zero_optimization:
     stage: 1
     overlap_comm: true
     contiguous_gradients: true
