@@ -11,7 +11,6 @@
 # Copyright (c) 2018-2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright (c) 2023, Tri Dao.
 
-from functools import partial
 from typing import Optional
 
 import torch
@@ -258,8 +257,8 @@ class FlexBertGLUMoE(FlexBertMLPBase):
                 "DeepSpeed is not available. Install `deepspeed` to enable the DeepSpeed MoE backend."
             )
 
-        expert_ctor = partial(
-            DeepSpeedGLUExpert,
+        expert_module = DeepSpeedGLUExpert(
+            hidden_size=self.config.hidden_size,
             intermediate_size=self.config.intermediate_size,
             activation=self.config.hidden_act,
             dropout_prob=self.config.mlp_dropout_prob,
@@ -275,7 +274,7 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         noisy_policy = "RSample" if self.use_noisy_top_k else "none"
         self.ds_moe = DeepSpeedMoELayer(
             hidden_size=self.config.hidden_size,
-            expert=expert_ctor,
+            expert=expert_module,
             num_experts=self.n_exp,
             ep_size=getattr(self.config, "moe_expert_parallel_size", 1),
             k=self.top_k,
