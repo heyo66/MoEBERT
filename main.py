@@ -467,6 +467,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         autoresume=cfg.get("autoresume", None),
         fsdp_config=cfg.get("fsdp_config", None),
         compile_config=cfg.get("compile_config", None),
+        deepspeed_config=cfg.get("deepspeed", None),
     )
 
     print("Logging config...")

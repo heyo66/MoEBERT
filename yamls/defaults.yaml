@@ -3,3 +3,5 @@ model:
   model_config:
     normalization: layernorm
     hidden_act: gelu
+
+deepspeed: null

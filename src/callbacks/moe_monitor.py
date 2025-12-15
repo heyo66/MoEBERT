@@ -36,6 +36,9 @@ class MoEAuxLossMonitor(Callback):
                 layer_stats[name]["moe_load_balance_loss"] = module.latest_lb_loss
             if hasattr(module, "latest_router_z_loss") and module.latest_router_z_loss is not None:
                 layer_stats[name]["moe_router_z_loss"] = module.latest_router_z_loss
+            if hasattr(module, "latest_moe_losses") and module.latest_moe_losses:
+                for loss_name, tensor in module.latest_moe_losses.items():
+                    layer_stats[name][f"moe_ds/{loss_name}"] = tensor
 
         if layer_stats:
           # initialize on correct device + dtype

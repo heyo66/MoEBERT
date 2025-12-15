@@ -78,6 +78,10 @@ model:
     moe_compute_aux_loss: true
     moe_load_balance_loss_weight: 0.01
     moe_router_z_loss_weight: 0.001
+    moe_backend: deepspeed
+    moe_expert_parallel_size: 1
+    moe_eval_capacity_factor: 1.25
+    moe_min_capacity: 0
 
 # Dataloaders
 train_loader:
@@ -160,6 +164,35 @@ loggers:
     entity: # Fill this in with your W&B team/entity name
     name: ${run_name}
     group: rope-base-moe
+
+deepspeed:
+  train_batch_size: ${global_train_batch_size}
+  train_micro_batch_size_per_gpu: ${device_train_microbatch_size}
+  gradient_accumulation_steps: 1
+  steps_per_print: 50
+  wall_clock_breakdown: false
+  zero_optimization:
+    stage: 2
+    overlap_comm: true
+    contiguous_gradients: true
+    reduce_scatter: true
+    reduce_bucket_size: 5.0e7
+    allgather_bucket_size: 5.0e7
+  bf16:
+    enabled: true
+  fp16:
+    enabled: false
+  activation_checkpointing:
+    partition_activations: false
+    contiguous_memory_optimization: false
+  moe:
+    enabled: true
+    expert_parallel_size: ${model.model_config.moe_expert_parallel_size}
+    top_k: ${model.model_config.moe_top_k}
+    capacity_factor: ${model.model_config.moe_capacity_factor}
+    eval_capacity_factor: ${model.model_config.moe_eval_capacity_factor}
+    min_capacity: ${model.model_config.moe_min_capacity}
+    drop_tokens: true
 
 # Checkpoint to local filesystem or remote object store
 save_interval: 100000sp

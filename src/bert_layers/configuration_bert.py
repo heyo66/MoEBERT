@@ -104,6 +104,10 @@ class FlexBertConfig(TransformersBertConfig):
         moe_compute_aux_loss: bool = True,
         moe_load_balance_loss_weight: float = 0.01,
         moe_router_z_loss_weight: float = 0.001,
+        moe_backend: str = "deepspeed",
+        moe_expert_parallel_size: int = 1,
+        moe_eval_capacity_factor: float | None = None,
+        moe_min_capacity: int = 0,
         **kwargs,
     ):
         """
@@ -170,6 +174,10 @@ class FlexBertConfig(TransformersBertConfig):
             moe_compute_aux_loss (bool): Whether to compute and add auxiliary losses for MoE.
             moe_load_balance_loss_weight (float): Weight for the load balancing auxiliary loss.
             moe_router_z_loss_weight (float): Weight for the router z-loss auxiliary loss.
+            moe_backend (str): Backend implementation for MoE layers. Only ``deepspeed`` is supported.
+            moe_expert_parallel_size (int): Expert parallelism degree for the chosen backend.
+            moe_eval_capacity_factor (float | None): Optional capacity factor override during evaluation.
+            moe_min_capacity (int): Minimum capacity passed to the backend router.
             **kwargs: Additional keyword arguments.
         """
         super().__init__(attention_probs_dropout_prob=attention_probs_dropout_prob, **kwargs)
@@ -234,6 +242,10 @@ class FlexBertConfig(TransformersBertConfig):
         self.moe_compute_aux_loss = moe_compute_aux_loss
         self.moe_load_balance_loss_weight = moe_load_balance_loss_weight
         self.moe_router_z_loss_weight = moe_router_z_loss_weight
+        self.moe_backend = moe_backend
+        self.moe_expert_parallel_size = moe_expert_parallel_size
+        self.moe_eval_capacity_factor = moe_eval_capacity_factor
+        self.moe_min_capacity = moe_min_capacity
 
         if loss_kwargs.get("return_z_loss", False):
             if loss_function != "fa_cross_entropy":
