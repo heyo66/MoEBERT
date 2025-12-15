@@ -171,14 +171,6 @@ deepspeed:
   gradient_accumulation_steps: 1
   steps_per_print: 50
   wall_clock_breakdown: false
- # zero_optimization:
-    stage: 1
-    overlap_comm: true
-    contiguous_gradients: true
-    reduce_scatter: true
-    reduce_bucket_size: 5.0e7
-    allgather_bucket_size: 5.0e7
-    ignore_unused_parameters: true
   bf16:
     enabled: true
   fp16:
