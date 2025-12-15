@@ -121,14 +121,24 @@ def mark_moe_param_groups(optimizer, model: nn.Module):
     }
     if not moe_param_ids:
         return
+    new_param_groups = []
     for group in optimizer.param_groups:
         params = group.get("params", [])
         if params is None:
             continue
-        for param in params:
-            if id(param) in moe_param_ids:
-                group["moe"] = True
-                break
+        moe_params = [param for param in params if id(param) in moe_param_ids]
+        non_moe_params = [param for param in params if id(param) not in moe_param_ids]
+        base_group = {k: v for k, v in group.items() if k != "params"}
+        if non_moe_params:
+            non_group = base_group.copy()
+            non_group["params"] = non_moe_params
+            new_param_groups.append(non_group)
+        if moe_params:
+            moe_group = base_group.copy()
+            moe_group["params"] = moe_params
+            moe_group["moe"] = True
+            new_param_groups.append(moe_group)
+    optimizer.param_groups[:] = new_param_groups
 
 
 def log_config(cfg: DictConfig):
