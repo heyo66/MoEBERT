@@ -285,7 +285,6 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             noisy_gate_policy=noisy_policy,
             drop_tokens=True,
             use_residual=False,
-            return_gates=False,
         )
 
     def _forward_with_deepspeed(self, hidden_states: torch.Tensor) -> torch.Tensor:
