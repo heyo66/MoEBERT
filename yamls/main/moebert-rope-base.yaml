@@ -7,7 +7,7 @@ data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 512
 tokenizer_name: bert-base-uncased
-mlm_probability: 0.3
+mlm_probability: 0.2
 
 # Run Name
 run_name: moebert-rope-base-8batch
@@ -140,7 +140,7 @@ global_eval_batch_size: 64
 device_eval_microbatch_size: 16
 
 # Logging
-progress_bar: false
+progress_bar: true
 log_to_console: true
 console_log_interval: 1ba
 
@@ -168,7 +168,7 @@ loggers:
 deepspeed:
   train_batch_size: ${global_train_batch_size}
   train_micro_batch_size_per_gpu: ${device_train_microbatch_size}
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 2
   steps_per_print: 50
   wall_clock_breakdown: false
   bf16:
