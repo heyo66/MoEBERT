@@ -14,6 +14,7 @@ import torch
 from torch import nn
 
 from src.bert_layers.configuration_bert import FlexBertConfig
+from src.bert_layers.mlp import FlexBertGLUMoE
 from src.bert_layers.model import init_mlm_model_from_pretrained
 
 # Add folder root to path to allow us to use relative imports regardless of what directory the script is run from
@@ -109,6 +110,25 @@ def param_groups_weight_decay(model: nn.Module, weight_decay=1e-5, no_weight_dec
             decay.append(param)
 
     return [{"params": no_decay, "weight_decay": 0.0}, {"params": decay, "weight_decay": weight_decay}]
+
+
+def mark_moe_param_groups(optimizer, model: nn.Module):
+    moe_param_ids = {
+        id(param)
+        for module in model.modules()
+        if isinstance(module, FlexBertGLUMoE)
+        for param in module.parameters()
+    }
+    if not moe_param_ids:
+        return
+    for group in optimizer.param_groups:
+        params = group.get("params", [])
+        if params is None:
+            continue
+        for param in params:
+            if id(param) in moe_param_ids:
+                group["moe"] = True
+                break
 
 
 def log_config(cfg: DictConfig):
@@ -222,13 +242,15 @@ def build_optimizer(cfg, model):
         params = model.parameters()
 
     if cfg.name == "decoupled_adamw":
-        return DecoupledAdamW(params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay)
+        optimizer = DecoupledAdamW(
+            params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay
+        )
     elif cfg.name == "adamw":
         print(
             "INFO: You might want to increase the weight decay because in AdamW it is scaled by the lr."
             f" Default weight decay is ``1e-2`` -> {cfg.weight_decay}. Default lr is `lr=1e-3` -> {cfg.lr}."
         )
-        return AdamW(params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay)
+        optimizer = AdamW(params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay)
     elif cfg.name == "stableadamw":
         try:
             if cfg.get("log_grad_norm", False):
@@ -242,7 +264,7 @@ def build_optimizer(cfg, model):
             "INFO: You might want to increase the weight decay because in StableAdamW it is scaled by the lr."
             f" Default weight decay is ``1e-2`` -> {cfg.weight_decay}. Default lr is `lr=1e-3` -> {cfg.lr}."
         )
-        return StableAdamW(params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay)
+        optimizer = StableAdamW(params, lr=cfg.lr, betas=list(cfg.betas), eps=cfg.eps, weight_decay=cfg.weight_decay)
     elif cfg.name == "decoupled_stableadamw":
         try:
             if cfg.get("log_grad_norm", False):
@@ -252,7 +274,7 @@ def build_optimizer(cfg, model):
         except ImportError:
             raise ImportError("Install `pip install torch-optimi` to use the StableAdamW optimizer.")
 
-        return StableAdamW(
+        optimizer = StableAdamW(
             params,
             lr=cfg.lr,
             betas=list(cfg.betas),
@@ -262,6 +284,9 @@ def build_optimizer(cfg, model):
         )
     else:
         raise ValueError(f"Not sure how to build optimizer: {cfg.name}")
+
+    mark_moe_param_groups(optimizer, model)
+    return optimizer
 
 
 def get_num_tokens_in_batch_unpadded(batch: dict):
