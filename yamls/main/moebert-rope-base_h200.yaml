@@ -141,11 +141,11 @@ global_train_batch_size: 4096
 
 # System
 seed: 17
-device_train_microbatch_size: 256
+device_train_microbatch_size: 128
 precision: amp_bf16
 
 global_eval_batch_size: 4096
-device_eval_microbatch_size: 256
+device_eval_microbatch_size: 128
 
 # Logging
 progress_bar: true
@@ -176,7 +176,7 @@ loggers:
 deepspeed:
   train_batch_size: ${global_train_batch_size}
   train_micro_batch_size_per_gpu: ${device_train_microbatch_size}
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 16
   steps_per_print: 50
   wall_clock_breakdown: false
   bf16:
