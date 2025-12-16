@@ -136,7 +136,7 @@ optimizer:
 # Training parameters
 max_duration: 12000000sp # Subsample 
 eval_interval: 500ba
-global_train_batch_size: 512
+global_train_batch_size: 256
 
 # System
 seed: 17
@@ -175,7 +175,7 @@ loggers:
 deepspeed:
   train_batch_size: ${global_train_batch_size}
   train_micro_batch_size_per_gpu: ${device_train_microbatch_size}
-  gradient_accumulation_steps: 16
+  gradient_accumulation_steps: 8
   steps_per_print: 50
   wall_clock_breakdown: false
   bf16:
