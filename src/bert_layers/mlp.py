@@ -15,7 +15,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 from .configuration_bert import FlexBertConfig
 from .activation import get_act_fn
 from .normalization import get_norm_layer
@@ -368,9 +368,12 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             flat = flat.view(-1, flat.size(-1))
         if flat.numel() == 0:
             return
-        target_dtype = gate_module.weight.dtype
         with torch.no_grad():
-            logits = gate_module(flat.to(dtype=target_dtype))
+            flat32 = flat.to(dtype=torch.float32)
+            weight32 = gate_module.weight.to(dtype=torch.float32)
+            bias32 = gate_module.bias.to(dtype=torch.float32) if getattr(gate_module, "bias", None) is not None else None
+            logits32 = F.linear(flat32, weight32, bias32)
+            logits = logits32.to(dtype=flat.dtype)
             probs = torch.softmax(logits, dim=-1)
             if probs.numel() == 0:
                 return
