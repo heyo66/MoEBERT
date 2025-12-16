@@ -133,7 +133,7 @@ optimizer:
 # Training parameters
 max_duration: 12000000sp # Subsample 
 eval_interval: 500ba
-global_train_batch_size: 512
+global_train_batch_size: 1024
 
 # System
 seed: 17
