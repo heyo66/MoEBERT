@@ -71,7 +71,7 @@ model:
     pad_logits: false
     
     # Mixture of Experts configuration
-    moe_num_experts: 6
+    moe_num_experts: 8
     moe_top_k: 2
     moe_use_noisy_top_k: true
     moe_capacity_factor: 2.0
@@ -129,14 +129,14 @@ optimizer:
 # Training parameters
 max_duration: 12000000sp # Subsample 
 eval_interval: 50ba
-global_train_batch_size: 64
+global_train_batch_size: 32
 
 # System
 seed: 17
 device_train_microbatch_size: 8
 precision: amp_bf16
 
-global_eval_batch_size: 64
+global_eval_batch_size: 32
 device_eval_microbatch_size: 8
 
 # Logging
@@ -168,7 +168,7 @@ loggers:
 deepspeed:
   train_batch_size: ${global_train_batch_size}
   train_micro_batch_size_per_gpu: ${device_train_microbatch_size}
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 2
   steps_per_print: 50
   wall_clock_breakdown: false
   bf16:
