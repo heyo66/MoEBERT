@@ -72,8 +72,8 @@ model:
     pad_logits: false
     
     # Mixture of Experts configuration
-    moe_num_experts: 16
-    moe_top_k: 4
+    moe_num_experts: 8
+    moe_top_k: 2
     moe_use_noisy_top_k: true
     moe_capacity_factor: 2.0
     moe_compute_aux_loss: false
