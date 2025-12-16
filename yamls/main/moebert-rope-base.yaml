@@ -7,7 +7,7 @@ data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 512
 tokenizer_name: bert-base-uncased
-mlm_probability: 0.15
+mlm_probability: 0.30
 
 # Run Name
 run_name: moebert-rope-base-8batch
@@ -122,7 +122,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 5.0e-5 # Peak learning rate
+  lr: 5.0e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -132,7 +132,7 @@ optimizer:
 
 # Training parameters
 max_duration: 12000000sp # Subsample 
-eval_interval: 50ba
+eval_interval: 500ba
 global_train_batch_size: 128
 
 # System
