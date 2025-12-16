@@ -164,6 +164,7 @@ cython_debug/
 
 # weights and biases
 wandb/
+Untitled-1.ipynb
 
 # OS X
 .DS_Store
