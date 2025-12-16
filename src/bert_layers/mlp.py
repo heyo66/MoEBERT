@@ -368,8 +368,9 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             flat = flat.view(-1, flat.size(-1))
         if flat.numel() == 0:
             return
+        target_dtype = gate_module.weight.dtype
         with torch.no_grad():
-            logits = gate_module(flat)
+            logits = gate_module(flat.to(dtype=target_dtype))
             probs = torch.softmax(logits, dim=-1)
             if probs.numel() == 0:
                 return
