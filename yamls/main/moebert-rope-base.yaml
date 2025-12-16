@@ -74,9 +74,9 @@ model:
     moe_num_experts: 6
     moe_top_k: 2
     moe_use_noisy_top_k: true
-    moe_capacity_factor: 1.25
+    moe_capacity_factor: 2.0
     moe_compute_aux_loss: true
-    moe_load_balance_loss_weight: 0.01
+    moe_load_balance_loss_weight: 0.05
     moe_router_z_loss_weight: 0.001
     moe_backend: deepspeed
     moe_expert_parallel_size: 1
@@ -113,12 +113,12 @@ eval_loader:
 # Optimization
 scheduler:
   name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup to the full LR for 6% of the training duration
+  t_warmup: 0.1dur # Warmup to the full LR for 10% of the training duration
   alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
 
 optimizer:
   name: decoupled_adamw
-  lr: 5.0e-4 # Peak learning rate
+  lr: 1.0e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
