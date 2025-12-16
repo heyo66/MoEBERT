@@ -230,6 +230,11 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.top_k = getattr(config, 'moe_top_k', 2)
         self.use_noisy_top_k = getattr(config, 'moe_use_noisy_top_k', True)
         self.capacity_factor = getattr(config, 'moe_capacity_factor', 1.25)
+        self.moe_intermediate_size = getattr(config, 'moe_intermediate_size', None)
+        self.use_loss_free_balance = getattr(config, 'moe_use_loss_free_balance', False)
+        self.loss_free_balance_update_rate = getattr(
+            config, 'moe_loss_free_balance_update_rate', 1e-5
+        )
         self.moe_backend = getattr(config, "moe_backend", "deepspeed")
         if self.moe_backend != "deepspeed":
             raise ValueError("The legacy FlexBERT MoE router has been removed; set `moe_backend: deepspeed`.")
@@ -374,6 +379,25 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             total = counts.sum()
             if total.item() > 0:
                 self.latest_expert_usage = (counts / total).detach()
+            self._apply_loss_free_balance(counts)
+
+    def _apply_loss_free_balance(self, counts: torch.Tensor):
+        if not self.use_loss_free_balance:
+            return
+        if counts.numel() == 0:
+            return
+        gate_module = self._resolve_ds_gate()
+        if gate_module is None:
+            return
+        if getattr(gate_module, "bias", None) is None:
+            gate_module.bias = nn.Parameter(torch.zeros(self.n_exp, device=gate_module.weight.device))
+        with torch.no_grad():
+            avg_count = counts.float().mean()
+            if not torch.isfinite(avg_count):
+                return
+            error = avg_count - counts.float()
+            update = self.loss_free_balance_update_rate * torch.sign(error)
+            gate_module.bias.data[: self.n_exp] = gate_module.bias.data[: self.n_exp] + update.to(gate_module.bias)
 
 
 # Update the MLP registry
