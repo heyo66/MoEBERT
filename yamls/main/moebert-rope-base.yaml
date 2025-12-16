@@ -118,7 +118,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 1.0e-4 # Peak learning rate
+  lr: 5.0e-5 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -128,7 +128,7 @@ optimizer:
 
 # Training parameters
 max_duration: 12000000sp # Subsample 
-eval_interval: 500ba
+eval_interval: 50ba
 global_train_batch_size: 64
 
 # System
