@@ -108,7 +108,6 @@ class FlexBertConfig(TransformersBertConfig):
         moe_expert_parallel_size: int = 1,
         moe_eval_capacity_factor: float | None = None,
         moe_min_capacity: int = 0,
-        moe_intermediate_size: int | None = None,
         moe_use_loss_free_balance: bool = False,
         moe_loss_free_balance_update_rate: float = 1e-5,
         **kwargs,
@@ -181,7 +180,6 @@ class FlexBertConfig(TransformersBertConfig):
             moe_expert_parallel_size (int): Expert parallelism degree for the chosen backend.
             moe_eval_capacity_factor (float | None): Optional capacity factor override during evaluation.
             moe_min_capacity (int): Minimum capacity passed to the backend router.
-            moe_intermediate_size (int | None): Optional intermediate size override for MoE experts.
             moe_use_loss_free_balance (bool): Enable auxiliary-loss-free load balancing strategy.
             moe_loss_free_balance_update_rate (float): Update rate for the loss-free balance bias.
             **kwargs: Additional keyword arguments.
@@ -252,7 +250,6 @@ class FlexBertConfig(TransformersBertConfig):
         self.moe_expert_parallel_size = moe_expert_parallel_size
         self.moe_eval_capacity_factor = moe_eval_capacity_factor
         self.moe_min_capacity = moe_min_capacity
-        self.moe_intermediate_size = moe_intermediate_size
         self.moe_use_loss_free_balance = moe_use_loss_free_balance
         self.moe_loss_free_balance_update_rate = moe_loss_free_balance_update_rate
 
