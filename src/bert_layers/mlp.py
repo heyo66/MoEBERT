@@ -230,6 +230,7 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.top_k = getattr(config, 'moe_top_k', 2)
         self.use_noisy_top_k = getattr(config, 'moe_use_noisy_top_k', True)
         self.capacity_factor = getattr(config, 'moe_capacity_factor', 1.25)
+        self.compute_aux_loss = getattr(config, 'moe_compute_aux_loss', True)
         self.moe_intermediate_size = getattr(config, 'moe_intermediate_size', None)
         self.use_loss_free_balance = getattr(config, 'moe_use_loss_free_balance', False)
         self.loss_free_balance_update_rate = getattr(
@@ -334,10 +335,14 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.latest_aux_loss = None
         self.latest_moe_losses = {}
 
-        if ds_aux_loss is not None:
+        if self.compute_aux_loss and ds_aux_loss is not None:
             self.latest_lb_loss = ds_aux_loss.detach()
             self.latest_aux_loss = self.latest_lb_loss
             self.aux_loss = ds_aux_loss
+        else:
+            self.latest_lb_loss = None
+            self.latest_aux_loss = None
+            self.aux_loss = None
 
         losses_dict = getattr(self.ds_moe, "losses_dict", None)
         if not losses_dict:
