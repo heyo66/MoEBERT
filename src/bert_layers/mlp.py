@@ -20,6 +20,7 @@ from .configuration_bert import FlexBertConfig
 from .activation import get_act_fn
 from .normalization import get_norm_layer
 from .initialization import ModuleType, init_weights
+from .loss import MoELoadBalancingLoss, MoERouterZLoss
 try:
     from deepspeed.moe.layer import MoE as DeepSpeedMoELayer
 except ImportError:  # pragma: no cover - optional dependency
@@ -235,9 +236,16 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self.loss_free_balance_update_rate = getattr(
             config, 'moe_loss_free_balance_update_rate', 1e-5
         )
+        self.lb_loss_weight = getattr(config, 'moe_load_balance_loss_weight', 0.0)
+        self.router_z_loss_weight = getattr(config, 'moe_router_z_loss_weight', 0.0)
         self.moe_backend = getattr(config, "moe_backend", "deepspeed")
         if self.moe_backend != "deepspeed":
             raise ValueError("The legacy FlexBERT MoE router has been removed; set `moe_backend: deepspeed`.")
+
+        self.lb_loss_fn = (
+            MoELoadBalancingLoss(num_experts=self.n_exp, top_k=self.top_k) if self.lb_loss_weight > 0.0 else None
+        )
+        self.router_z_loss_fn = MoERouterZLoss() if self.router_z_loss_weight > 0.0 else None
 
         self._init_deepspeed_moe()
 
@@ -316,9 +324,17 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         if hidden_states.dim() == 2:
             hidden_states = hidden_states.unsqueeze(0)
 
+        router_logits = self._compute_router_logits(hidden_states)
+
         self.latest_expert_usage = None
         self.latest_expert_prob = None
-        self._capture_expert_stats(hidden_states)
+        self.aux_loss = None
+        self.latest_lb_loss = None
+        self.latest_router_z_loss = None
+        self.latest_aux_loss = None
+        self.latest_moe_losses = {}
+
+        self._capture_expert_stats(router_logits)
 
         outputs = self.ds_moe(hidden_states)
         if isinstance(outputs, tuple):
@@ -328,20 +344,26 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             routed_hidden_states = outputs
             ds_aux_loss = None
 
-        self.aux_loss = None
-        self.latest_lb_loss = None
-        self.latest_router_z_loss = None
-        self.latest_aux_loss = None
-        self.latest_moe_losses = {}
+        custom_aux_loss = self._compute_custom_aux_losses(router_logits)
 
+        aux_terms = []
         if self.compute_aux_loss and ds_aux_loss is not None:
-            self.latest_lb_loss = ds_aux_loss.detach()
-            self.latest_aux_loss = self.latest_lb_loss
-            self.aux_loss = ds_aux_loss
+            aux_terms.append(ds_aux_loss)
+            if self.lb_loss_fn is None:
+                self.latest_lb_loss = ds_aux_loss.detach()
+
+        if custom_aux_loss is not None:
+            aux_terms.append(custom_aux_loss)
+
+        if aux_terms:
+            total_aux = aux_terms[0]
+            for term in aux_terms[1:]:
+                total_aux = total_aux + term
+            self.aux_loss = total_aux
+            self.latest_aux_loss = total_aux.detach()
         else:
-            self.latest_lb_loss = None
-            self.latest_aux_loss = None
             self.aux_loss = None
+            self.latest_aux_loss = None
 
         losses_dict = getattr(self.ds_moe, "losses_dict", None)
         if not losses_dict:
@@ -363,26 +385,60 @@ class FlexBertGLUMoE(FlexBertMLPBase):
         self._ds_gate = candidate
         return self._ds_gate
 
-    def _capture_expert_stats(self, hidden_states: torch.Tensor):
+    def _compute_router_logits(self, hidden_states: torch.Tensor) -> Optional[torch.Tensor]:
         gate_module = self._resolve_ds_gate()
         if gate_module is None:
+            return None
+        if hidden_states.dim() < 2:
+            return None
+        token_shape = hidden_states.shape[:-1]
+        flat = hidden_states.reshape(-1, hidden_states.size(-1))
+        if flat.numel() == 0:
+            return None
+        gate_weight = gate_module.weight
+        gate_bias = getattr(gate_module, "bias", None)
+        if flat.dtype != gate_weight.dtype:
+            flat = flat.to(dtype=gate_weight.dtype)
+        logits = F.linear(flat, gate_weight, gate_bias)
+        return logits.reshape(*token_shape, logits.size(-1))
+
+    def _compute_custom_aux_losses(self, router_logits: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+        if router_logits is None:
+            return None
+
+        logits_fp32 = router_logits.to(dtype=torch.float32)
+        total_loss = None
+
+        if self.lb_loss_fn is not None:
+            topk = torch.topk(logits_fp32.detach(), k=min(self.top_k, logits_fp32.size(-1)), dim=-1).indices
+            lb_loss = self.lb_loss_fn(logits_fp32, topk)
+            self.latest_lb_loss = lb_loss.detach()
+            weighted_lb = lb_loss * self.lb_loss_weight
+            total_loss = weighted_lb if total_loss is None else total_loss + weighted_lb
+
+        if self.router_z_loss_fn is not None:
+            router_z_loss = self.router_z_loss_fn(logits_fp32)
+            self.latest_router_z_loss = router_z_loss.detach()
+            weighted_z = router_z_loss * self.router_z_loss_weight
+            total_loss = weighted_z if total_loss is None else total_loss + weighted_z
+
+        return total_loss
+
+    def _capture_expert_stats(self, router_logits: Optional[torch.Tensor]):
+        if router_logits is None:
             return
-        flat = hidden_states
+        flat = router_logits
         if flat.dim() > 2:
-            flat = flat.view(-1, flat.size(-1))
+            flat = flat.reshape(-1, flat.size(-1))
         if flat.numel() == 0:
             return
         with torch.no_grad():
-            flat32 = flat.to(dtype=torch.float32)
-            weight32 = gate_module.weight.to(dtype=torch.float32)
-            bias32 = gate_module.bias.to(dtype=torch.float32) if getattr(gate_module, "bias", None) is not None else None
-            logits32 = F.linear(flat32, weight32, bias32)
-            logits = logits32.to(dtype=flat.dtype)
-            probs = torch.softmax(logits, dim=-1)
+            logits32 = flat.to(dtype=torch.float32)
+            probs = torch.softmax(logits32, dim=-1)
             if probs.numel() == 0:
                 return
             self.latest_expert_prob = probs.mean(dim=0).detach()
-            topk = torch.topk(logits, k=min(self.top_k, logits.size(-1)), dim=-1).indices
+            topk = torch.topk(logits32, k=min(self.top_k, logits32.size(-1)), dim=-1).indices
             counts = torch.bincount(topk.view(-1), minlength=self.n_exp).float()
             total = counts.sum()
             if total.item() > 0:
