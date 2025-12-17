@@ -397,8 +397,11 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             return None
         gate_weight = gate_module.weight
         gate_bias = getattr(gate_module, "bias", None)
-        flat = flat.type_as(gate_weight)
-        logits = F.linear(flat, gate_weight, gate_bias)
+        flat32 = flat.to(dtype=torch.float32)
+        weight32 = gate_weight.to(dtype=torch.float32)
+        bias32 = gate_bias.to(dtype=torch.float32) if gate_bias is not None else None
+        logits32 = F.linear(flat32, weight32, bias32)
+        logits = logits32.to(dtype=flat.dtype)
         return logits.reshape(*token_shape, logits.size(-1))
 
     def _compute_custom_aux_losses(self, router_logits: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
