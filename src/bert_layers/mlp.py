@@ -397,7 +397,7 @@ class FlexBertGLUMoE(FlexBertMLPBase):
             return None
         gate_weight = gate_module.weight
         gate_bias = getattr(gate_module, "bias", None)
-        flat = flat.to(dtype=gate_weight.dtype)
+        flat = flat.type_as(gate_weight)
         logits = F.linear(flat, gate_weight, gate_bias)
         return logits.reshape(*token_shape, logits.size(-1))
 
